@@ -1,0 +1,182 @@
+# Injection Moulding Defect Capture and Annotation Tool
+
+## Overview
+
+This project implements a **lightweight image capture and annotation pipeline** for generating object-detection datasets of surface defects in injection-moulded components. The system is designed to operate in a **controlled, offline imaging setup** and to integrate directly with OpenCV-based workflows and modern deep-learning training pipelines (e.g. YOLO).
+
+The tool combines:
+- Direct camera capture
+- Interactive bounding-box annotation
+- Structured dataset export
+- Basic dataset validation utilities
+
+The emphasis is on **simplicity, transparency, and reproducibility**, rather than real-time performance or industrial deployment.
+
+---
+
+## System Architecture
+
+The system is structured as a small number of loosely coupled modules:
+
+1. Capture Module  
+2. Annotation UI  
+3. Dataset Storage Layer  
+4. Dataset Audit Utilities  
+
+Each module is designed to be camera-agnostic and file-system-based to minimise external dependencies.
+
+---
+
+## Dependencies
+
+- Python 3.12 (recommended to use prebuilt wheels for NumPy and OpenCV)
+- pip
+- OpenCV Python bindings (`opencv-python`, which installs `numpy`)
+
+### Install Python 3.12 on Windows
+1. Download the official Windows installer for Python 3.12.
+2. During setup, tick **Add Python to PATH** and keep the Windows launcher (enables `py`).
+
+### Create a virtual environment and install OpenCV (PowerShell)
+```powershell
+# From the repository root
+py -3.12 -m venv .venv
+.\.venv\Scripts\activate
+
+# Upgrade pip and install wheel-only builds to avoid compiling
+pip install --upgrade pip
+pip install --only-binary=:all: "numpy<2.3.0" "opencv-python<4.13"
+```
+
+---
+
+## Image Capture Module
+
+### Functionality
+- Acquires frames from a connected camera using OpenCV (`cv2.VideoCapture`)
+- Displays a live preview window for framing and focus checks
+- Captures single frames on user input
+- Writes image files directly to disk
+
+### Design Considerations
+- No assumptions are made about camera type (laptop webcam or external USB camera)
+- Capture settings (resolution, camera index) are configurable
+- Capture is explicitly user-triggered to avoid near-duplicate frames
+
+### Output
+- Images are saved using a deterministic naming scheme encoding:
+  - capture date/time
+  - tool or part identifier
+  - sequential index
+- Basic capture metadata is recorded separately for traceability
+
+---
+
+## Annotation Interface
+
+### Annotation Model
+- Object detection using axis-aligned bounding boxes
+- Each bounding box is associated with a single defect class
+- Multiple defects per image are supported
+- Images with no defects are explicitly allowed
+
+### User Interface
+- Implemented using OpenCV window callbacks
+- Mouse input:
+  - click-and-drag to draw bounding boxes
+- Keyboard input:
+  - numeric keys for class assignment
+  - undo last annotation
+  - save and advance to next image
+
+The UI is intentionally minimal to reduce annotation time and cognitive load.
+
+---
+
+## Label Format
+
+Annotations are exported in **YOLO object detection format**, with one text file per image:
+
+```
+<class_id> <x_center> <y_center> <width> <height>
+```
+
+Where:
+- All coordinates are normalised to image dimensions
+- `class_id` corresponds to a fixed class list defined in `classes.txt`
+
+This format was selected for compatibility with common training frameworks and ease of validation.
+
+---
+
+## Dataset Storage Layout
+
+The dataset is stored entirely on disk using a transparent directory structure:
+
+```
+dataset/
+├── images/
+│   └── all/
+├── labels/
+│   └── all/
+├── meta/
+│   └── metadata.csv
+└── classes.txt
+```
+
+### Design Rationale
+- Images are not stored in a database to avoid unnecessary I/O overhead
+- Labels and metadata are human-readable
+- The dataset can be inspected, versioned, or transferred without specialised tooling
+
+---
+
+## Dataset Integrity and Validation
+
+A dataset audit step is included to ensure consistency before training.
+
+Validation checks include:
+- One-to-one correspondence between images and label files
+- Bounding box values within valid ranges
+- Detection of empty or malformed label files
+- Summary statistics:
+  - images per class
+  - bounding boxes per class
+  - distribution across tools or parts
+
+This step is intended to catch annotation errors early and prevent silent failures during training.
+
+---
+
+## Integration with Training Pipelines
+
+The generated dataset is intended to be consumed directly by object-detection training frameworks.
+
+Key integration features:
+- YOLO-compatible label format
+- Deterministic filenames for reproducible splits
+- Support for dataset partitioning based on tool, part geometry, or capture session
+
+The capture and annotation codebase is deliberately decoupled from any specific training implementation.
+
+---
+
+## Limitations
+
+- Annotation is fully manual
+- No real-time inference or deployment functionality
+- No automated defect proposal or pre-labelling
+- Image quality and defect visibility depend on external hardware and lighting
+
+These constraints are intentional to keep the system lightweight and maintainable.
+
+---
+
+## Intended Use
+
+This tool is intended for:
+- Rapid dataset generation for defect detection experiments
+- Prototyping object-detection pipelines
+- Controlled data collection in laboratory or bench-top environments
+
+It is not intended for production inspection systems or safety-critical use.
