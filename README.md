@@ -1,8 +1,7 @@
-# Injection Moulding Defect Capture and Annotation Tool
-
+# OpenCV based image capture and labelling for training YOLO object detection neural networks
 ## Overview
 
-This project implements a **lightweight image capture and annotation pipeline** for generating object-detection datasets of surface defects in injection-moulded components. The system is designed to operate in a **controlled, offline imaging setup** and to integrate directly with OpenCV-based workflows and modern deep-learning training pipelines (e.g. YOLO).
+This project implements a **lightweight image capture and annotation pipeline** for generating object-detection datasets. The system is designed to operate in a **controlled, offline imaging setup** and to integrate directly with OpenCV-based workflows and modern deep-learning training pipelines (e.g. YOLO).
 
 The tool combines:
 - Direct camera capture
