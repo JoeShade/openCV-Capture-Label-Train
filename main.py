@@ -23,7 +23,16 @@ CAPTURE_DIR = Path("captures")
 NULL_DIR = CAPTURE_DIR / "null"
 CLASSES_PATH = Path("classes.txt")
 CLASS_COLORS_PATH = Path("class_colors.json")
-BUILD_DATE = datetime.fromtimestamp(Path(__file__).stat().st_mtime).strftime("%Y-%m-%d")
+LOGO_FILE = Path("logo.bmp")
+ICON_FILE = Path("programLogo.ico")
+if getattr(sys, "frozen", False):
+    build_source = Path(sys.executable)
+else:
+    build_source = Path(__file__)
+try:
+    BUILD_DATE = datetime.fromtimestamp(build_source.stat().st_mtime).strftime("%d/%m/%Y")
+except OSError:
+    BUILD_DATE = datetime.now().strftime("%d/%m/%Y")
 DEFAULT_CLASS_COLORS = [
     (0, 255, 0),     # green
     (0, 200, 255),   # yellow-ish
@@ -37,6 +46,76 @@ DEFAULT_CLASS_COLORS = [
     (0, 255, 128),   # mint
 ]
 TIMER_INTERVAL_MS = 33  # ~30 FPS for the preview timer
+LOGO_WIDTH = 64
+LOGO_HEIGHT = 64
+LOGO_BITMAP = bytes(
+    [
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x1F, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x7F, 0xC0, 0x07, 0x80, 0x00, 0x00,
+        0x00, 0x00, 0x60, 0xE0, 0x1F, 0xC0, 0x00, 0x00,
+        0x00, 0x00, 0xC0, 0x60, 0x18, 0xE0, 0x00, 0x00,
+        0x00, 0x00, 0xC0, 0x70, 0x30, 0x60, 0x00, 0x00,
+        0x00, 0x00, 0xC0, 0x3F, 0xB0, 0x7F, 0x00, 0x00,
+        0x00, 0x00, 0xC0, 0x03, 0xB0, 0x03, 0x00, 0x00,
+        0x00, 0x00, 0xC0, 0x03, 0x38, 0x03, 0x00, 0x00,
+        0x00, 0x00, 0xE0, 0x03, 0x1E, 0x03, 0x00, 0x00,
+        0x00, 0x00, 0x78, 0x06, 0x0E, 0x03, 0x00, 0x00,
+        0x00, 0x00, 0x1C, 0x06, 0x00, 0x03, 0x00, 0x00,
+        0x00, 0x00, 0x0C, 0x0C, 0x00, 0x03, 0x00, 0x00,
+        0x00, 0x00, 0x1C, 0x0C, 0x00, 0x03, 0x00, 0x00,
+        0x00, 0x00, 0x18, 0x1C, 0x00, 0x03, 0x00, 0x00,
+        0x00, 0x00, 0x18, 0x18, 0x00, 0x03, 0x00, 0x00,
+        0x00, 0x00, 0x18, 0x30, 0x00, 0x03, 0x00, 0x00,
+        0x00, 0x00, 0x18, 0x3F, 0x00, 0x03, 0x00, 0x00,
+        0x00, 0x00, 0x18, 0x7F, 0x00, 0x03, 0x00, 0x00,
+        0x00, 0x00, 0x18, 0x00, 0xFF, 0xF3, 0x00, 0x00,
+        0x00, 0x00, 0x18, 0x7F, 0xFF, 0xFB, 0x00, 0x00,
+        0x00, 0x00, 0x1F, 0xFE, 0x00, 0x0F, 0x00, 0x00,
+        0x00, 0x00, 0x1F, 0x00, 0x00, 0x0F, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x1B, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x7B, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0xE3, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x03, 0xC3, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x07, 0x03, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x1E, 0x03, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x78, 0x03, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x01, 0xE0, 0x03, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x07, 0xFF, 0xFF, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x1F, 0xFF, 0xFF, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    ]
+)
 
 # Global variables (none)
 
@@ -154,6 +233,57 @@ def draw_text_with_bg(
     x, y = org
     cv2.rectangle(img, (x - 2, y - text_h - baseline - 2), (x + text_w + 2, y + baseline + 2), bg_color, -1)
     cv2.putText(img, text, org, font, font_scale, color, thickness, cv2.LINE_AA)
+
+
+def logo_pixmap(color: QtGui.QColor = QtGui.QColor("#00ff7f")) -> QtGui.QPixmap:
+    """Convert the embedded monochrome logo bitmap into a pixmap."""
+    img = QtGui.QImage(LOGO_WIDTH, LOGO_HEIGHT, QtGui.QImage.Format_ARGB32)
+    img.fill(QtCore.Qt.transparent)
+    for y in range(LOGO_HEIGHT):
+        for x in range(LOGO_WIDTH):
+            byte_index = (y * LOGO_WIDTH + x) // 8
+            bit_index = 7 - (x % 8)
+            if byte_index < len(LOGO_BITMAP) and ((LOGO_BITMAP[byte_index] >> bit_index) & 1):
+                img.setPixelColor(x, y, color)
+    return QtGui.QPixmap.fromImage(img)
+
+
+def load_logo_file_pixmap() -> Optional[QtGui.QPixmap]:
+    """Load logo.bmp if available (supports PyInstaller frozen paths) and strip white background."""
+    try:
+        base = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else Path.cwd()
+    except Exception:
+        base = Path.cwd()
+    logo_path = base / LOGO_FILE.name
+    if logo_path.exists():
+        pix = QtGui.QPixmap(str(logo_path))
+        if not pix.isNull():
+            img = pix.toImage().convertToFormat(QtGui.QImage.Format_ARGB32)
+            white = QtGui.QColor(255, 255, 255)
+            for y in range(img.height()):
+                for x in range(img.width()):
+                    if img.pixelColor(x, y) == white:
+                        img.setPixelColor(x, y, QtGui.QColor(255, 255, 255, 0))
+            return QtGui.QPixmap.fromImage(img)
+    return None
+
+
+def load_app_icon() -> Optional[QtGui.QIcon]:
+    """Load the app icon (programLogo.ico) with PyInstaller support."""
+    try:
+        base = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else Path.cwd()
+    except Exception:
+        base = Path.cwd()
+    candidate_paths = [
+        base / ICON_FILE.name,
+        Path(sys.executable).parent / ICON_FILE.name if getattr(sys, "frozen", False) else None,
+    ]
+    for path in candidate_paths:
+        if path and path.exists():
+            icon = QtGui.QIcon(str(path))
+            if not icon.isNull():
+                return icon
+    return None
 
 
 def annotate_image(
@@ -634,6 +764,8 @@ class CameraWindow(QtWidgets.QWidget):
 
         self.camera_selector = QtWidgets.QComboBox()
         self.camera_selector.setSizeAdjustPolicy(QtWidgets.QComboBox.AdjustToContents)
+        self.camera_selector.setMinimumWidth(120)
+        self.camera_selector.setFixedHeight(self.menu_bar.sizeHint().height())
         self.populate_camera_selector()
         self.camera_selector.currentIndexChanged.connect(self.change_camera)
 
@@ -645,17 +777,22 @@ class CameraWindow(QtWidgets.QWidget):
         nav_layout.setSpacing(10)
         nav_layout.addWidget(self.menu_bar)
         nav_layout.addStretch()
-        nav_layout.addWidget(QtWidgets.QLabel("Camera:"))
+        camera_label = QtWidgets.QLabel("Camera:")
+        camera_label.setAlignment(QtCore.Qt.AlignVCenter | QtCore.Qt.AlignRight)
+        nav_layout.addWidget(camera_label)
         nav_layout.addWidget(self.camera_selector)
 
         # Basic UI: video preview, capture button, status text.
         self.video_label = QtWidgets.QLabel(alignment=QtCore.Qt.AlignCenter)
         self.video_label.setMinimumSize(640, 480)
+        self.video_label.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
         self.video_label.setText("Connecting to camera...")
+        self._last_pixmap: Optional[QtGui.QPixmap] = None
 
         self.capture_button = QtWidgets.QPushButton("Capture (C)")
         self.capture_button.clicked.connect(self.capture_frame)
         self.status_label = QtWidgets.QLabel("Ready")
+        self.status_label.setAlignment(QtCore.Qt.AlignCenter)
 
         # Inspect action buttons.
         self.inspect_buttons = QtWidgets.QWidget()
@@ -901,8 +1038,7 @@ class CameraWindow(QtWidgets.QWidget):
         bytes_per_line = ch * w
         q_image = QtGui.QImage(frame_rgb.data, w, h, bytes_per_line, QtGui.QImage.Format_RGB888)
         pixmap = QtGui.QPixmap.fromImage(q_image)
-        self.video_label.setPixmap(pixmap)
-        self.video_label.setFixedSize(pixmap.size())
+        self._set_display_pixmap(pixmap)
 
         self.status_label.setText(
             f"Inspecting {self.inspect_index + 1}/{len(self.inspect_files)}: {image_path.name} (boxes: {len(boxes)})"
@@ -971,6 +1107,26 @@ class CameraWindow(QtWidgets.QWidget):
             self._display_inspect_image()
             self.timer.stop()
 
+    def _set_display_pixmap(self, pixmap: QtGui.QPixmap) -> None:
+        """Store and render a pixmap scaled to the video label."""
+        self._last_pixmap = pixmap
+        self._apply_display_pixmap()
+
+    def _apply_display_pixmap(self) -> None:
+        """Apply the stored pixmap to the label with aspect fit."""
+        if self._last_pixmap is None:
+            return
+        target_size = self.video_label.size()
+        if target_size.width() <= 0 or target_size.height() <= 0:
+            return
+        scaled = self._last_pixmap.scaled(target_size, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
+        self.video_label.setPixmap(scaled)
+
+    def resizeEvent(self, event: QtGui.QResizeEvent) -> None:  # type: ignore[override]
+        """Keep the displayed image centered and scaled on resize."""
+        self._apply_display_pixmap()
+        super().resizeEvent(event)
+
     def update_frame(self) -> None:
         """Grab a frame from OpenCV, convert it, and display it in the QLabel."""
         if self.inspect_mode:
@@ -994,9 +1150,7 @@ class CameraWindow(QtWidgets.QWidget):
             frame_rgb.data, width, height, bytes_per_line, QtGui.QImage.Format_RGB888
         )
         pixmap = QtGui.QPixmap.fromImage(q_image)
-
-        self.video_label.setPixmap(pixmap)
-        self.video_label.setFixedSize(pixmap.size())
+        self._set_display_pixmap(pixmap)
 
     def closeEvent(self, event: QtGui.QCloseEvent) -> None:  # type: ignore[override]
         """Release the camera when the window closes to free the device."""
@@ -1303,8 +1457,53 @@ def main() -> None:
     args = parse_args()
 
     app = QtWidgets.QApplication(sys.argv)
+    app_icon = load_app_icon()
+    if app_icon:
+        app.setWindowIcon(app_icon)
+
+    # Lightweight loading splash to give immediate feedback on launch.
+    splash_pix = QtGui.QPixmap(460, 420)
+    splash_pix.fill(QtGui.QColor("#f0f0f0"))
+    painter = QtGui.QPainter(splash_pix)
+    painter.setPen(QtGui.QColor("#000000"))
+
+    # Title at top
+    title_font = QtGui.QFont("Segoe UI", 18, QtGui.QFont.Bold)
+    painter.setFont(title_font)
+    painter.drawText(splash_pix.rect(), QtCore.Qt.AlignTop | QtCore.Qt.AlignHCenter, WINDOW_TITLE)
+
+    # Large white logo in center
+    logo = load_logo_file_pixmap()
+    if logo is None:
+        logo = logo_pixmap(QtGui.QColor("#000000"))
+    scaled_logo = logo.scaled(174, 174, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
+    logo_x = (splash_pix.width() - scaled_logo.width()) // 2
+    logo_y = 100
+    painter.drawPixmap(logo_x, logo_y, scaled_logo)
+
+    # Footer text at bottom
+    painter.setFont(QtGui.QFont("Segoe UI", 12, QtGui.QFont.Normal))
+    footer_text = f"Loading...\nBuild: {BUILD_DATE} | JShade.co.uk"
+    text_y = logo_y + scaled_logo.height() + 20
+    text_height = max(40, splash_pix.height() - text_y - 20)
+    painter.drawText(
+        0,
+        text_y,
+        splash_pix.width(),
+        text_height,
+        QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter,
+        footer_text,
+    )
+    painter.end()
+    splash = QtWidgets.QSplashScreen(splash_pix, QtCore.Qt.WindowStaysOnTopHint)
+    splash.show()
+    app.processEvents()
+
     window = CameraWindow(args.camera, args.width, args.height)
+    if app_icon:
+        window.setWindowIcon(app_icon)
     window.show()
+    splash.finish(window)
 
     # Start the Qt event loop; this keeps the window responsive until closed.
     sys.exit(app.exec_())
