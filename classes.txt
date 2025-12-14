@@ -1,0 +1,5 @@
+defect
+background
+short
+flash
+wet

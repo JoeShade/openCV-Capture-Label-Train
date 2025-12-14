@@ -6,6 +6,8 @@
 """
 
 import argparse
+import json
+import math
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -19,7 +21,8 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 WINDOW_TITLE = "OpenCV Capture and Label"
 CAPTURE_DIR = Path("captures")
 CLASSES_PATH = Path("classes.txt")
-CLASS_COLORS = [
+CLASS_COLORS_PATH = Path("class_colors.json")
+DEFAULT_CLASS_COLORS = [
     (0, 255, 0),     # green
     (0, 200, 255),   # yellow-ish
     (0, 128, 255),   # orange
@@ -45,6 +48,39 @@ def load_classes(path: Path = CLASSES_PATH) -> List[str]:
     return ["defect"]
 
 
+def save_classes(classes: List[str], path: Path = CLASSES_PATH) -> None:
+    """Persist class names to disk, one per line."""
+    path.write_text("\n".join(classes), encoding="utf-8")
+
+
+def load_class_colors(path: Path = CLASS_COLORS_PATH) -> List[Tuple[int, int, int]]:
+    """Load class color palette from JSON; fall back to defaults on errors."""
+    if not path.exists():
+        return list(DEFAULT_CLASS_COLORS)
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        colors: List[Tuple[int, int, int]] = []
+        for item in data:
+            if isinstance(item, (list, tuple)) and len(item) == 3:
+                r, g, b = (int(max(0, min(255, v))) for v in item)
+                colors.append((r, g, b))
+        return colors or list(DEFAULT_CLASS_COLORS)
+    except (json.JSONDecodeError, OSError, ValueError):
+        return list(DEFAULT_CLASS_COLORS)
+
+
+def save_class_colors(colors: List[Tuple[int, int, int]], path: Path = CLASS_COLORS_PATH) -> None:
+    """Persist class colors to disk as a JSON array of RGB triples."""
+    path.write_text(json.dumps(colors), encoding="utf-8")
+
+
+def class_color(class_id: int, palette: List[Tuple[int, int, int]]) -> Tuple[int, int, int]:
+    """Pick a color for a class id from the provided palette."""
+    if not palette:
+        return 0, 255, 0
+    return palette[class_id % len(palette)]
+
+
 def save_labels_yolo(image_path: Path, boxes: List[List[int]], image_shape) -> Path:
     """Write YOLO-format labels for the provided boxes next to the image."""
     height, width = image_shape[:2]
@@ -68,11 +104,6 @@ def save_labels_yolo(image_path: Path, boxes: List[List[int]], image_shape) -> P
     return label_path
 
 
-def class_color(class_id: int) -> Tuple[int, int, int]:
-    """Pick a color for a class id from a fixed palette."""
-    return CLASS_COLORS[class_id % len(CLASS_COLORS)]
-
-
 def draw_text_with_bg(
     img,
     text: str,
@@ -90,7 +121,11 @@ def draw_text_with_bg(
     cv2.putText(img, text, org, font, font_scale, color, thickness, cv2.LINE_AA)
 
 
-def annotate_image(image_path: Path, classes: List[str]) -> bool:
+def annotate_image(
+    image_path: Path,
+    classes: List[str],
+    class_colors: List[Tuple[int, int, int]],
+) -> bool:
     """Open a simple OpenCV window to draw boxes and save YOLO labels.
 
     Mouse: click-drag to draw a box.
@@ -161,7 +196,7 @@ def annotate_image(image_path: Path, classes: List[str]) -> bool:
         for idx, (x1, y1, x2, y2, cls) in enumerate(boxes):
             # Preview pending class on the selected box before applying.
             display_cls: Optional[int] = pending_class_choice if (idx == selected_index and pending_class_choice is not None) else cls
-            base_color = class_color(display_cls) if display_cls is not None else (0, 165, 255)
+            base_color = class_color(display_cls, class_colors) if display_cls is not None else (0, 165, 255)
             color = (255, 255, 255) if (idx == selected_index and flash_on) else base_color
             cv2.rectangle(canvas, (x1, y1), (x2, y2), color, 2)
             if display_cls is not None:
@@ -222,7 +257,8 @@ def annotate_image(image_path: Path, classes: List[str]) -> bool:
             )
 
         cv2.imshow(window_name, canvas)
-        key = cv2.waitKey(30) & 0xFF
+        # waitKeyEx preserves extended key codes (e.g., arrow keys)
+        key = cv2.waitKeyEx(30)
 
         if key == ord("s"):
             if any(cls is None for *_, cls in boxes):
@@ -240,11 +276,30 @@ def annotate_image(image_path: Path, classes: List[str]) -> bool:
             pending_class_choice = None
         if ord("0") <= key <= ord("9"):
             class_id = key - ord("0")
-            if boxes:
+            if class_id >= len(classes):
+                print(f"Class {class_id} not defined. Only 0-{len(classes) - 1} available.")
+            elif boxes:
                 if selected_index is None:
                     selected_index = len(boxes) - 1
                 pending_class_choice = class_id
                 print(f"Class {class_id} selected. Press Enter to apply.")
+            else:
+                print("No box to label. Draw a box first.")
+        UP_KEYS = {82, 2490368}
+        DOWN_KEYS = {84, 2621440}
+        if key in UP_KEYS.union(DOWN_KEYS):
+            if not classes:
+                print("No classes available.")
+            elif boxes:
+                if selected_index is None:
+                    selected_index = len(boxes) - 1
+                current_cls = pending_class_choice
+                if current_cls is None:
+                    current_cls = boxes[selected_index][4] if boxes[selected_index][4] is not None else 0
+                delta = 1 if key in UP_KEYS else -1
+                new_cls = (current_cls + delta) % len(classes)
+                pending_class_choice = new_cls
+                print(f"Class {new_cls} selected with arrow key. Press Enter to apply.")
             else:
                 print("No box to label. Draw a box first.")
         if key in (13, 10):  # Enter/Return
@@ -292,6 +347,124 @@ def enumerate_cameras(max_index: int = 5) -> List[int]:
     return found
 
 
+class ClassSettingsDialog(QtWidgets.QDialog):
+    """Dialog to edit class names and colors."""
+
+    def __init__(self, classes: List[str], colors: List[Tuple[int, int, int]], parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Class Settings")
+        self.resize(400, 500)
+        self._base_classes = list(classes)
+        self._base_colors = list(colors) if colors else list(DEFAULT_CLASS_COLORS)
+        self.rows: List[dict] = []
+
+        count_label = QtWidgets.QLabel("Number of classes:")
+        self.count_spin = QtWidgets.QSpinBox()
+        self.count_spin.setMinimum(1)
+        self.count_spin.setMaximum(50)
+        self.count_spin.setValue(max(1, len(classes)))
+        self.count_spin.valueChanged.connect(self._rebuild_rows)
+
+        count_layout = QtWidgets.QHBoxLayout()
+        count_layout.addWidget(count_label)
+        count_layout.addWidget(self.count_spin)
+        count_layout.addStretch()
+
+        self.rows_container = QtWidgets.QWidget()
+        self.rows_layout = QtWidgets.QVBoxLayout(self.rows_container)
+        self.rows_layout.setContentsMargins(0, 0, 0, 0)
+        self.rows_layout.setSpacing(8)
+
+        scroll = QtWidgets.QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(self.rows_container)
+
+        buttons = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
+        )
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+
+        layout = QtWidgets.QVBoxLayout()
+        layout.addLayout(count_layout)
+        layout.addWidget(scroll)
+        layout.addWidget(buttons)
+        self.setLayout(layout)
+
+        self._rebuild_rows()
+
+    def _rebuild_rows(self) -> None:
+        """Recreate rows to match the chosen class count."""
+        # Preserve current edits before rebuilding so names/colors are not lost.
+        if self.rows:
+            current_names: List[str] = []
+            current_colors: List[Tuple[int, int, int]] = []
+            for idx, row in enumerate(self.rows):
+                text = row["name"].text().strip()
+                current_names.append(text if text else f"class_{idx}")
+                current_colors.append(row["color"])
+            self._base_classes = current_names
+            self._base_colors = current_colors
+
+        while self.rows_layout.count():
+            item = self.rows_layout.takeAt(0)
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
+        self.rows = []
+
+        count = self.count_spin.value()
+        for idx in range(count):
+            name = self._base_classes[idx] if idx < len(self._base_classes) else f"class_{idx}"
+            color = self._base_colors[idx] if idx < len(self._base_colors) else DEFAULT_CLASS_COLORS[idx % len(DEFAULT_CLASS_COLORS)]
+
+            name_edit = QtWidgets.QLineEdit(name)
+            color_button = QtWidgets.QPushButton()
+            color_button.setFixedWidth(60)
+            self._set_button_color(color_button, color)
+
+            row_widget = QtWidgets.QWidget()
+            row_layout = QtWidgets.QHBoxLayout(row_widget)
+            row_layout.setContentsMargins(0, 0, 0, 0)
+            row_layout.setSpacing(8)
+            row_layout.addWidget(QtWidgets.QLabel(f"{idx}:"))
+            row_layout.addWidget(name_edit, stretch=1)
+            row_layout.addWidget(color_button)
+
+            self.rows_layout.addWidget(row_widget)
+
+            row_data = {"name": name_edit, "color": color, "button": color_button}
+            color_button.clicked.connect(lambda _, r=row_data: self._pick_color(r))
+            self.rows.append(row_data)
+
+        self.rows_layout.addStretch()
+
+    def _pick_color(self, row: dict) -> None:
+        """Open a color dialog and update the stored color."""
+        r, g, b = row["color"]
+        current = QtGui.QColor(r, g, b)
+        chosen = QtWidgets.QColorDialog.getColor(current, self, "Choose Color")
+        if chosen.isValid():
+            row["color"] = (chosen.red(), chosen.green(), chosen.blue())
+            self._set_button_color(row["button"], row["color"])
+
+    @staticmethod
+    def _set_button_color(button: QtWidgets.QPushButton, color: Tuple[int, int, int]) -> None:
+        r, g, b = color
+        button.setStyleSheet(f"background-color: rgb({r}, {g}, {b});")
+
+    def get_results(self) -> Tuple[List[str], List[Tuple[int, int, int]]]:
+        """Return sanitized names and colors from the form."""
+        names: List[str] = []
+        colors: List[Tuple[int, int, int]] = []
+        for idx, row in enumerate(self.rows):
+            raw_name = row["name"].text().strip()
+            names.append(raw_name if raw_name else f"class_{idx}")
+            colors.append(row["color"])
+        return names, colors
+
+
+
 class CameraWindow(QtWidgets.QWidget):
     """Simple window that shows live frames from a camera using Qt widgets."""
 
@@ -299,6 +472,8 @@ class CameraWindow(QtWidgets.QWidget):
         super().__init__()
 
         self.classes = load_classes()
+        self.class_colors = load_class_colors()
+        self._sync_palette_with_classes()
         self.camera_index = camera_index
         self.requested_width = width
         self.requested_height = height
@@ -310,6 +485,11 @@ class CameraWindow(QtWidgets.QWidget):
         file_menu = self.menu_bar.addMenu("File")
         quit_action = file_menu.addAction("Quit")
         quit_action.triggered.connect(QtWidgets.qApp.quit)
+        settings_menu = self.menu_bar.addMenu("Settings")
+        edit_classes_action = settings_menu.addAction("Edit Classes && Colors")
+        edit_classes_action.triggered.connect(self.open_class_settings)
+        edit_camera_action = settings_menu.addAction("Edit Camera Settings")
+        edit_camera_action.triggered.connect(self.open_camera_settings)
 
         self.camera_selector = QtWidgets.QComboBox()
         self.camera_selector.setSizeAdjustPolicy(QtWidgets.QComboBox.AdjustToContents)
@@ -341,6 +521,13 @@ class CameraWindow(QtWidgets.QWidget):
         layout.addWidget(self.status_label)
         self.setLayout(layout)
         self.setWindowTitle(WINDOW_TITLE)
+        self.setFocusPolicy(QtCore.Qt.StrongFocus)
+
+        # Global shortcuts to ensure key presses work regardless of focus.
+        self.capture_shortcut = QtWidgets.QShortcut(QtGui.QKeySequence("C"), self)
+        self.capture_shortcut.activated.connect(self.capture_frame)
+        self.quit_shortcut = QtWidgets.QShortcut(QtGui.QKeySequence("Q"), self)
+        self.quit_shortcut.activated.connect(self.close)
 
         # A Qt timer calls `update_frame` ~30 times per second to pull fresh frames
         # from OpenCV without blocking the UI event loop.
@@ -392,6 +579,42 @@ class CameraWindow(QtWidgets.QWidget):
         self.status_label.setText(f"Switched to camera {new_index}.")
         self.timer.start(TIMER_INTERVAL_MS)
 
+    def _sync_palette_with_classes(self) -> None:
+        """Ensure we have a color per class (pad or trim)."""
+        needed = len(self.classes)
+        if needed <= 0:
+            self.classes = ["defect"]
+            needed = 1
+        if len(self.class_colors) < needed:
+            for i in range(needed - len(self.class_colors)):
+                self.class_colors.append(
+                    DEFAULT_CLASS_COLORS[(len(self.class_colors) + i) % len(DEFAULT_CLASS_COLORS)]
+                )
+        elif len(self.class_colors) > needed:
+            self.class_colors = self.class_colors[:needed]
+
+    def open_class_settings(self) -> None:
+        """Open dialog to edit class names and colors."""
+        dialog = ClassSettingsDialog(self.classes, self.class_colors, self)
+        if dialog.exec_() == QtWidgets.QDialog.Accepted:
+            new_classes, new_colors = dialog.get_results()
+            self.classes = new_classes
+            self.class_colors = new_colors
+            self._sync_palette_with_classes()
+            save_classes(self.classes)
+            save_class_colors(self.class_colors)
+            self.status_label.setText("Updated class settings.")
+
+    def open_camera_settings(self) -> None:
+        """Open dialog to tweak camera properties (exposure, white balance, gain)."""
+        if not self.cap or not self.cap.isOpened():
+            QtWidgets.QMessageBox.warning(self, "Camera", "Camera is not open.")
+            return
+        dialog = CameraSettingsDialog(self.cap, self)
+        if dialog.exec_() == QtWidgets.QDialog.Accepted:
+            dialog.apply_settings()
+            self.status_label.setText("Updated camera settings.")
+
     def update_frame(self) -> None:
         """Grab a frame from OpenCV, convert it, and display it in the QLabel."""
         if not self.cap.isOpened():
@@ -433,6 +656,8 @@ class CameraWindow(QtWidgets.QWidget):
         """Allow pressing 'c' to capture a frame."""
         if event.key() in (QtCore.Qt.Key_C,):
             self.capture_frame()
+        elif event.key() in (QtCore.Qt.Key_Q,):
+            self.close()
         else:
             super().keyPressEvent(event)
 
@@ -459,7 +684,7 @@ class CameraWindow(QtWidgets.QWidget):
 
         self.status_label.setText(f"Saved {image_path.name}. Please label it.")
 
-        labeled = annotate_image(image_path, self.classes)
+        labeled = annotate_image(image_path, self.classes, self.class_colors)
         if labeled:
             self.status_label.setText(f"Labeled {image_path.name}.")
         else:
@@ -474,6 +699,201 @@ class CameraWindow(QtWidgets.QWidget):
         # Resume the live feed and allow the next capture.
         self.capture_button.setEnabled(True)
         self.timer.start(TIMER_INTERVAL_MS)
+
+
+class CameraSettingsDialog(QtWidgets.QDialog):
+    """Dialog to adjust camera properties like exposure, white balance, and gain."""
+
+    def __init__(self, cap: cv2.VideoCapture, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Camera Settings")
+        self.cap = cap
+        self._prop_ids = {
+            "exposure": cv2.CAP_PROP_EXPOSURE,
+            "wb": getattr(cv2, "CAP_PROP_WB_TEMPERATURE", 45),
+            "gain": cv2.CAP_PROP_GAIN,
+        }
+        self._original_values = self._snapshot_properties()
+
+        form = QtWidgets.QFormLayout()
+        form.setLabelAlignment(QtCore.Qt.AlignRight)
+        form.setFormAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter)
+
+        self.exposure_spin = QtWidgets.QDoubleSpinBox()
+        self.exposure_spin.setRange(-13.0, 13.0)
+        self.exposure_spin.setSingleStep(0.1)
+        exp_supported, _ = self._prepare_field(
+            self.exposure_spin,
+            self._prop_ids["exposure"],
+            default=0.0,
+            probe_set=True,
+            restore_after_probe=True,
+        )
+        form.addRow("Exposure", self.exposure_spin)
+
+        self.wb_spin = QtWidgets.QSpinBox()
+        self.wb_spin.setRange(2000, 10000)
+        self.wb_spin.setSingleStep(100)
+        wb_supported, _ = self._prepare_field(
+            self.wb_spin,
+            self._prop_ids["wb"],
+            default=4500,
+            probe_set=True,
+            restore_after_probe=True,
+            zero_means_unsupported=True,
+        )
+        form.addRow("White Balance (K)", self.wb_spin)
+
+        self.gain_spin = QtWidgets.QDoubleSpinBox()
+        self.gain_spin.setRange(0.0, 255.0)
+        self.gain_spin.setSingleStep(1.0)
+        gain_supported, _ = self._prepare_field(
+            self.gain_spin,
+            self._prop_ids["gain"],
+            default=0.0,
+            probe_set=True,
+            restore_after_probe=True,
+            zero_means_unsupported=True,
+        )
+        form.addRow("Gain", self.gain_spin)
+
+        unsupported_note = QtWidgets.QLabel("Unavailable controls are disabled based on camera support.")
+        unsupported_note.setStyleSheet("color: gray; font-size: 11px;")
+
+        buttons = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
+        )
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+
+        layout = QtWidgets.QVBoxLayout()
+        layout.addLayout(form)
+        layout.addWidget(unsupported_note)
+        layout.addWidget(buttons)
+        self.setLayout(layout)
+
+        # Store support flags for use when applying.
+        self._supports = {
+            "exposure": exp_supported,
+            "wb": wb_supported,
+            "gain": gain_supported,
+        }
+
+        # Apply live while dialog is open.
+        if exp_supported:
+            self.exposure_spin.valueChanged.connect(lambda v: self._apply_live("exposure", float(v)))
+        if wb_supported:
+            self.wb_spin.valueChanged.connect(lambda v: self._apply_live("wb", float(v)))
+        if gain_supported:
+            self.gain_spin.valueChanged.connect(lambda v: self._apply_live("gain", float(v)))
+
+    def _prepare_field(
+        self,
+        widget: QtWidgets.QAbstractSpinBox,
+        prop_id: int,
+        default: float,
+        probe_set: bool = False,
+        zero_means_unsupported: bool = False,
+        restore_after_probe: bool = False,
+    ) -> Tuple[bool, Optional[float]]:
+        """Populate a field from the camera; disable if unsupported."""
+        supported, value = self._read_property(
+            prop_id,
+            probe_set=probe_set,
+            zero_means_unsupported=zero_means_unsupported,
+            restore_after_probe=restore_after_probe,
+        )
+        if not supported:
+            widget.setEnabled(False)
+            widget.setToolTip("Not supported by this camera/driver.")
+            self._set_spin_value(widget, default)
+        else:
+            self._set_spin_value(widget, value if value is not None else default)
+        return supported, value
+
+    def _read_property(
+        self,
+        prop_id: int,
+        probe_set: bool = False,
+        zero_means_unsupported: bool = False,
+        restore_after_probe: bool = False,
+    ) -> Tuple[bool, Optional[float]]:
+        """Check if property is supported by reading it; optionally probe a no-op set."""
+        if not self.cap or not self.cap.isOpened():
+            return False, None
+        value = self.cap.get(prop_id)
+        if value is None or (isinstance(value, float) and math.isnan(value)):
+            return False, None
+        # Heuristic: if zero means unsupported for this property, disable it.
+        if zero_means_unsupported and value == 0:
+            return False, None
+        # Probe with a no-op set; some drivers report values but reject writes.
+        if probe_set:
+            original_value = value
+            ok = self.cap.set(prop_id, value)
+            if restore_after_probe and ok and original_value is not None:
+                # Restore original value in case the driver reset it (e.g., to -6).
+                self.cap.set(prop_id, original_value)
+            if not ok:
+                return False, None
+        return True, value
+
+    @staticmethod
+    def _set_spin_value(widget: QtWidgets.QAbstractSpinBox, value: float) -> None:
+        """Set a spin box value with correct type for int vs. double spin boxes."""
+        if isinstance(widget, QtWidgets.QSpinBox):
+            widget.setValue(int(round(value)))
+        else:
+            widget.setValue(float(value))
+
+    def apply_settings(self) -> None:
+        """Write the chosen settings back to the camera."""
+        if not self.cap or not self.cap.isOpened():
+            return
+        if self._supports.get("exposure"):
+            self.cap.set(self._prop_ids["exposure"], float(self.exposure_spin.value()))
+        if self._supports.get("wb"):
+            self.cap.set(self._prop_ids["wb"], float(self.wb_spin.value()))
+        if self._supports.get("gain"):
+            self.cap.set(self._prop_ids["gain"], float(self.gain_spin.value()))
+
+    def _apply_live(self, prop_key: str, value: float) -> None:
+        """Apply a property immediately to give live preview feedback."""
+        if not self.cap or not self.cap.isOpened():
+            return
+        if not self._supports.get(prop_key):
+            return
+        prop_id = self._prop_ids.get(prop_key)
+        if prop_id is None:
+            return
+        self.cap.set(prop_id, value)
+
+    def _snapshot_properties(self) -> dict:
+        """Capture current camera properties to restore on cancel."""
+        snapshot = {}
+        if not self.cap or not self.cap.isOpened():
+            return snapshot
+        for key, prop_id in self._prop_ids.items():
+            val = self.cap.get(prop_id)
+            if val is None or (isinstance(val, float) and math.isnan(val)):
+                continue
+            snapshot[key] = val
+        return snapshot
+
+    def restore_original_settings(self) -> None:
+        """Revert camera properties to their original values."""
+        if not self.cap or not self.cap.isOpened():
+            return
+        for key, val in self._original_values.items():
+            prop_id = self._prop_ids.get(key)
+            if prop_id is None:
+                continue
+            self.cap.set(prop_id, val)
+
+    def reject(self) -> None:  # type: ignore[override]
+        """On cancel/close, restore original settings."""
+        self.restore_original_settings()
+        super().reject()
 
 
 def parse_args() -> argparse.Namespace:

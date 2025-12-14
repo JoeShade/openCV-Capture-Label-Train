@@ -33,6 +33,11 @@ Each module is designed to be camera-agnostic and file-system-based to minimise 
 - pip
 - OpenCV Python bindings (`opencv-python`, which installs `numpy`)
 
+### Recommended local setup
+- Create and use a dedicated venv named `.venv312` to avoid interpreter mismatches: `py -3.12 -m venv .venv312` then `.\.venv312\Scripts\activate`.
+- Install packages inside it: `pip install --upgrade pip` then `pip install --only-binary=:all: "numpy<2.3.0" "opencv-python<4.13" pyqt5`.
+- VS Code users: set the interpreter to `.venv312/Scripts/python.exe` (workspace setting already included in `.vscode/settings.json`). Terminals still need `.\.venv312\Scripts\activate` before running `python main.py`.
+
 ### Install Python 3.12 on Windows
 1. Download the official Windows installer for Python 3.12.
 2. During setup, tick **Add Python to PATH** and keep the Windows launcher (enables `py`).
