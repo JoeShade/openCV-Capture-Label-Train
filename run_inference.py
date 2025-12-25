@@ -36,6 +36,7 @@ try:
 except OSError:
     BUILD_DATE = datetime.now().strftime("%d/%m/%Y")
 ICON_FILE = Path("runIcon.ico")
+SPLASH_LOGO_FILE = Path("programLogo.ico")
 CLASS_COLORS_PATH = Path("class_colors.json")
 CAPTURE_DIR = Path("captures")
 INFERENCE_DIR = CAPTURE_DIR / "inference"
@@ -87,6 +88,24 @@ def load_app_icon() -> Optional[QtGui.QIcon]:
     return None
 
 
+def load_splash_logo_pixmap(size: int) -> Optional[QtGui.QPixmap]:
+    """Load the splash logo pixmap from programLogo.ico if available."""
+    try:
+        base = Path(sys._MEIPASS) if getattr(sys, "frozen", False) else Path.cwd()
+    except Exception:
+        base = Path.cwd()
+    candidate_paths = [
+        base / SPLASH_LOGO_FILE.name,
+        Path(sys.executable).parent / SPLASH_LOGO_FILE.name if getattr(sys, "frozen", False) else None,
+    ]
+    for path in candidate_paths:
+        if path and path.exists():
+            pixmap = QtGui.QPixmap(str(path))
+            if not pixmap.isNull():
+                return pixmap.scaled(size, size, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
+    return None
+
+
 def create_splash() -> QtWidgets.QSplashScreen:
     """Create a simple splash screen so the user sees activity on startup."""
     splash_pix = QtGui.QPixmap(460, 420)
@@ -96,7 +115,13 @@ def create_splash() -> QtWidgets.QSplashScreen:
     painter.setFont(QtGui.QFont("Segoe UI", 18, QtGui.QFont.Bold))
     painter.drawText(splash_pix.rect(), QtCore.Qt.AlignTop | QtCore.Qt.AlignHCenter, WINDOW_TITLE)
 
+    logo = load_splash_logo_pixmap(174)
     text_y = 120
+    if logo is not None:
+        logo_x = (splash_pix.width() - logo.width()) // 2
+        logo_y = 100
+        painter.drawPixmap(logo_x, logo_y, logo)
+        text_y = logo_y + logo.height() + 20
 
     painter.setFont(QtGui.QFont("Segoe UI", 12))
     text_height = max(40, splash_pix.height() - text_y - 20)
