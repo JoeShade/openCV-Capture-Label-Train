@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 
@@ -8,6 +9,8 @@ TEST_FILES = sorted((REPO_ROOT / "tests").glob("*.py"))
 
 def test_required_governance_files_exist():
     required_paths = [
+        REPO_ROOT / "README.md",
+        REPO_ROOT / "CONTRIBUTING.md",
         REPO_ROOT / "AGENTS.md",
         REPO_ROOT / "systemDesign.md",
         REPO_ROOT / "docs" / "architecture-notes.md",
@@ -21,11 +24,12 @@ def test_required_governance_files_exist():
 
 def test_deviations_file_is_explicitly_empty_or_uses_template():
     text = (REPO_ROOT / "docs" / "deviations.md").read_text(encoding="utf-8")
-    if "_None currently tracked._" in text:
-        assert "### DEV-" not in text
+    uncommented = re.sub(r"<!--.*?-->", "", text, flags=re.S)
+    if "_None currently tracked._" in uncommented:
+        assert "### DEV-" not in uncommented
         return
 
-    sections = [section for section in text.split("### DEV-") if section.strip()]
+    sections = [section for section in uncommented.split("### DEV-") if section.strip()]
     assert sections, "Expected either the explicit empty marker or at least one DEV section."
     for section in sections:
         assert "Design expectation:" in section
@@ -34,6 +38,55 @@ def test_deviations_file_is_explicitly_empty_or_uses_template():
         assert "Intended resolution:" in section
         assert "Owner:" in section
         assert "Review trigger:" in section
+
+
+def test_readme_uses_required_conversion_structure():
+    text = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    assert text.startswith("# "), "README should start with a single project title."
+
+    intro_index = text.find("## Introduction")
+    assert intro_index != -1, "README is missing an Introduction section."
+    badge_block = text[:intro_index]
+    assert "![Platform:" in badge_block or "[![" in badge_block, "README should include at least one badge after the title."
+
+    headings = [
+        "## Introduction",
+        "## Disclaimer",
+        "## Set-up",
+        "## Usage",
+        "## Contributing",
+        "## Supporting docs",
+    ]
+    positions = [text.find(heading) for heading in headings]
+    assert all(position != -1 for position in positions), "README is missing one or more required sections."
+    assert positions == sorted(positions), "README sections are not in the required order."
+
+    assert "See [CONTRIBUTING.md](./CONTRIBUTING.md)" in text
+    for link in [
+        "[CONTRIBUTING.md](./CONTRIBUTING.md)",
+        "[AGENTS.md](./AGENTS.md)",
+        "[systemDesign.md](./systemDesign.md)",
+        "[docs/architecture-notes.md](./docs/architecture-notes.md)",
+        "[docs/deviations.md](./docs/deviations.md)",
+    ]:
+        assert link in text
+
+
+def test_contributing_doc_covers_workflow_and_validation():
+    text = (REPO_ROOT / "CONTRIBUTING.md").read_text(encoding="utf-8")
+    for heading in [
+        "# Contributing",
+        "## Getting started",
+        "## How to propose changes",
+        "## Expectations for changes",
+        "## Validation checklist",
+        "## Supporting design and architecture docs",
+    ]:
+        assert heading in text
+
+    assert ".\\.venv312\\Scripts\\python.exe -m pytest" in text
+    assert "systemDesign.md" in text
+    assert "docs/deviations.md" in text
 
 
 def test_footer_policy_is_documented_and_applied_to_python_files():
@@ -65,7 +118,17 @@ def test_footer_policy_is_documented_and_applied_to_python_files():
 
 def test_gitignore_covers_generated_test_artifacts():
     gitignore_text = (REPO_ROOT / ".gitignore").read_text(encoding="utf-8")
-    for entry in [".venv/", ".venv312/", ".pytest_cache/", "build/", "dist/", "runs/", "captures/.yolo_training_cache/"]:
+    for entry in [
+        ".venv/",
+        ".venv312/",
+        "__pycache__/",
+        ".pytest_cache/",
+        "build/",
+        "dist/",
+        ".yolo_training_cache/",
+        "runs/",
+        "captures/.yolo_training_cache/",
+    ]:
         assert entry in gitignore_text
 
 

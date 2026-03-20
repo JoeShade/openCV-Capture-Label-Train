@@ -38,6 +38,9 @@ This repository is maintained using:
   `.\.venv312\Scripts\python.exe -m pytest`
 
 ## Documentation expectations
+- Update `README.md` when onboarding, setup, usage, or supporting-doc navigation changes.
+- Keep `README.md` ordered as: Title, badges, introduction, disclaimer, set-up, usage, contributing, supporting docs.
+- Update `CONTRIBUTING.md` when contributor workflow or validation expectations change.
 - `systemDesign.md` must describe the implementation that exists today.
 - `docs/architecture-notes.md` should stay short and practical.
 - `docs/deviations.md` should track only live mismatches between design and code.
@@ -51,6 +54,7 @@ This repository is maintained using:
 
 ## Repository hygiene
 - Required governance files must exist.
+- `README.md` and `CONTRIBUTING.md` should remain present and aligned with the current workflow.
 - Test and cache artifacts should stay ignored.
 - `docs/deviations.md` should either be explicitly empty or use the standard deviation template.
 - Repo conventions should be enforced mechanically where practical instead of relying on memory.
